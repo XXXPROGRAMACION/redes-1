@@ -31,7 +31,6 @@ def signal_handler(nsignal, frame):
 		pcap_breakloop(handle)
 
 
-
 def procesa_paquete(us, header, data):
 	global num_paquete, pdumper
 	logging.info("Nuevo paquete de {} bytes capturado a las {}.{}".format(header.len, header.ts.tv_sec, header.ts.tv_usec))
@@ -42,8 +41,8 @@ def procesa_paquete(us, header, data):
 
 	print("Primeros " + str(length) + " de " + str(header.len) + " bytes del paquete " + str(num_paquete) + ": " + formated_data)
 
-	#TODO imprimir los N primeros bytes
-	#Escribir el tráfico al fichero de captura con el offset temporal
+	header.ts.tv_sec += TIME_OFFSET
+	pcap_dump(pdumper, header, data)
 
 
 if __name__ == "__main__":
@@ -75,8 +74,8 @@ if __name__ == "__main__":
 	#TODO abrir la interfaz especificada para captura o la traza
 	#TODO abrir un dumper para volcar el tráfico (si se ha especificado interfaz)
 	if args.interface is not False:
-		handle = pcap_open_live(args.interface, 1514, 1, 1, errbuf)
-		pdumper = pcap_dump_open(pcap_open_dead(DLT_EN10MB, 1514), "captura." + args.interface + "." + str(int(time.time())) + ".pcap")
+		handle = pcap_open_live(args.interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
+		pdumper = pcap_dump_open(pcap_open_dead(DLT_EN10MB, ETH_FRAME_MAX), "captura." + args.interface + "." + str(int(time.time())) + ".pcap")
 	else:
 		handle = pcap_open_offline(args.tracefile, errbuf)
 		if handle is None:
