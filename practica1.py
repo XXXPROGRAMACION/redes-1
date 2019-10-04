@@ -16,6 +16,7 @@ from argparse import RawTextHelpFormatter
 import time
 import logging
 
+
 ETH_FRAME_MAX = 1514
 PROMISC = 1
 NO_PROMISC = 0
@@ -23,19 +24,28 @@ TO_MS = 10
 num_paquete = 0
 TIME_OFFSET = 30*60
 
+
 def signal_handler(nsignal, frame):
 	logging.info("Control C pulsado")
 	if handle:
 		pcap_breakloop(handle)
-		
+
+
 
 def procesa_paquete(us, header, data):
 	global num_paquete, pdumper
-	logging.info("Nuevo paquete de {} bytes capturado a las {}.{}".format(header.len, header.ts.tv_sec, header.ts.tv_sec))
+	logging.info("Nuevo paquete de {} bytes capturado a las {}.{}".format(header.len, header.ts.tv_sec, header.ts.tv_usec))
 	num_paquete += 1
+
+	length = (args.nbytes if header.caplen > args.nbytes else header.caplen)
+	formated_data = ' '.join('%02x'%byte for byte in data[:length])
+
+	print("Primeros " + str(length) + " de " + str(header.len) + " bytes del paquete " + str(num_paquete) + ": " + formated_data)
+
 	#TODO imprimir los N primeros bytes
 	#Escribir el tráfico al fichero de captura con el offset temporal
-	
+
+
 if __name__ == "__main__":
 	global pdumper, args, handle
 	parser = argparse.ArgumentParser(description = "Captura tráfico de una interfaz (o lee de fichero) y muestra la longitud y timestamp de los 50 primeros paquetes",
@@ -64,23 +74,17 @@ if __name__ == "__main__":
 	
 	#TODO abrir la interfaz especificada para captura o la traza
 	#TODO abrir un dumper para volcar el tráfico (si se ha especificado interfaz)
-	
 	if args.interface is not False:
 		handle = pcap_open_live(args.interface, 1514, 1, 1, errbuf)
-		pdumper = pcap_dump_open(pcap_open_dead(DLT_EN10MB, 1514), args.tracefile)
+		pdumper = pcap_dump_open(pcap_open_dead(DLT_EN10MB, 1514), "captura." + args.interface + "." + str(int(time.time())) + ".pcap")
 	else:
 		handle = pcap_open_offline(args.tracefile, errbuf)
-
 		if handle is None:
 			logging.error("Error al abrir el fichero " + str(args.tracefile))
 			parser.print_help()
 			sys.exit(-1)
 
-	logging.info("Patatillas 1")
-
 	ret = pcap_loop(handle, 50, procesa_paquete, None)
-
-	logging.info("Patatillas 2")
 
 	if ret == -1:
 		logging.error("Error al capturar un paquete")
@@ -89,8 +93,8 @@ if __name__ == "__main__":
 	elif ret == 0:
 		logging.debug("No mas paquetes o limite superado")
 	logging.info("{} paquetes procesados".format(num_paquete))
-	#TODO si se ha creado un dumper cerrarlo
 	
+	#TODO si se ha creado un dumper cerrarlo
 	pcap_close(handle)
 	if args.tracefile is False:
 		pcap_dump_close(pdumper)
