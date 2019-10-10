@@ -1,0 +1,9 @@
+Alejandro Pascual Pozo y Víctor Yrazusta Ibarra
+
+Normativa de entrega cumplida en su totalidad: Realizado: Varias relecturas del enunciado.
+Contar paquetes de una traza: Realizado: Se ha comprobado que el número de paquete que muestra nuestro programa coincide con el que indica Wireshark excepto cuando alcance el límite especificado a la función. Ese límite lo hemos definido en la constante LIMITE_PAQUETE.
+Contar paquetes de la interfaz de red: Realizado: Igual que el caso anterior, ya que usan el mismo flujo de ejecución. En este caso, evidentemente, se invierte el proceso de captura y verificación con Wireshark.
+Almacenar en una traza el tráfico capturado en vivo: Realizado: Se ha comprobado que todos los bytes de la traza capturada coincide con lo que indica Wireshark.
+Modificar fecha correctamente: Realizado: Se ha comprobado en Wireshark que todas las fechas del paquete capturado están "desplazadas" 30 minutos.
+Imprimir los N primeros bytes de un paquete y validarlo con Wireshark (captura de pantalla): Realizado: Se ha comprobado que para una misma traza se imprime exactamente el mismo contenido, adjuntando capturas en el directorio /capturas.
+Cuestionario "Ejercicios de captura de tráfico": Realizado: Se han realizado los ejercicios, adjuntando capturas en el directorio /capturas.

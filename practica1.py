@@ -17,6 +17,7 @@ import time
 import logging
 
 
+LIMITE_PAQUETE = 10
 ETH_FRAME_MAX = 1514
 PROMISC = 1
 NO_PROMISC = 0
@@ -39,10 +40,11 @@ def procesa_paquete(us, header, data):
 	length = (args.nbytes if header.caplen > args.nbytes else header.caplen)
 	formated_data = ' '.join('%02x'%byte for byte in data[:length])
 
-	print("Primeros " + str(length) + " de " + str(header.len) + " bytes del paquete " + str(num_paquete) + ": " + formated_data)
+	logging.info("Primeros " + str(length) + " de " + str(header.len) + " bytes del paquete " + str(num_paquete) + ": " + formated_data)
 
-	header.ts.tv_sec += TIME_OFFSET
-	pcap_dump(pdumper, header, data)
+	if (args.interface is not False):
+		header.ts.tv_sec += TIME_OFFSET
+		pcap_dump(pdumper, header, data)
 
 
 if __name__ == "__main__":
@@ -61,7 +63,12 @@ if __name__ == "__main__":
 		logging.basicConfig(level = logging.INFO, format = "[%(asctime)s %(levelname)s]\t%(message)s")
 
 	if args.tracefile is False and args.interface is False:
-		logging.error("No se ha especificado interfaz ni fichero")
+		logging.error("No se ha especificado ni interfaz ni traza")
+		parser.print_help()
+		sys.exit(-1)
+
+	if args.tracefile is not False and args.interface is not False:
+		logging.error("Se ha especificado tanto interfaz como traza")
 		parser.print_help()
 		sys.exit(-1)
 
@@ -71,8 +78,6 @@ if __name__ == "__main__":
 	handle = None
 	pdumper = None
 	
-	#TODO abrir la interfaz especificada para captura o la traza
-	#TODO abrir un dumper para volcar el tráfico (si se ha especificado interfaz)
 	if args.interface is not False:
 		handle = pcap_open_live(args.interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
 		pdumper = pcap_dump_open(pcap_open_dead(DLT_EN10MB, ETH_FRAME_MAX), "captura." + args.interface + "." + str(int(time.time())) + ".pcap")
@@ -83,17 +88,16 @@ if __name__ == "__main__":
 			parser.print_help()
 			sys.exit(-1)
 
-	ret = pcap_loop(handle, 50, procesa_paquete, None)
+	ret = pcap_loop(handle, LIMITE_PAQUETE, procesa_paquete, None)
 
 	if ret == -1:
-		logging.error("Error al capturar un paquete")
+		logging.info("Error al capturar un paquete")
 	elif ret == -2:
-		logging.debug("pcap_breakloop() llamado")
+		logging.info("pcap_breakloop() llamado")
 	elif ret == 0:
-		logging.debug("No mas paquetes o limite superado")
+		logging.info("No mas paquetes o limite superado")
 	logging.info("{} paquetes procesados".format(num_paquete))
 	
-	#TODO si se ha creado un dumper cerrarlo
 	pcap_close(handle)
 	if args.tracefile is False:
 		pcap_dump_close(pdumper)
