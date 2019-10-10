@@ -1,0 +1,12 @@
+1. No se nos ha presentado ninguna dificultad especial en este primer ejercicio.
+
+2. 
+	1. El filtro es "ip && frame.len >= 1000".
+	2. Se puede realizar desde File -> Export specified packets... -> Displayed
+	3. El tamaño es de entre 1484 y 1514, parece haber un límite superior en el tamaño de los paquetes.
+
+3. Hay que añadir una nueva columna del tipe "Delta time". Se puede hacer desde Edit -> Preferences -> Columns.
+
+4. Hay que modificar la columna de "Time". Esto se realiza en Edit -> Preferences -> Columns -> Time, cambiando el formato de tiempo.
+
+5. Al empezar a capturar desde una interfaz podemos establecer un filtro de captura. Para seleccionar el filtro UDP podemos escribir el filtro directamente ("udp") o seleccionarlo de la lista de filtros de wireshark.
