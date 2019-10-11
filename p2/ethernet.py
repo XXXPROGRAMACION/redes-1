@@ -21,7 +21,7 @@ NO_PROMISC = 0
 TO_MS = 10
 #Dirección de difusión (Broadcast)
 broadcastAddr = bytes([0xFF]*6)
-#Diccionario que alamacena para un Ethertype dado qué función de callback se debe ejecutar
+#Diccionario que almacena, para un Ethertype dado, qué función de callback se debe ejecutar
 upperProtos = {}
 
 def getHwAddr(interface):
@@ -35,18 +35,19 @@ def getHwAddr(interface):
     '''
     s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
     s.bind((interface,0))
-    mac =  (s.getsockname()[4])
+    mac = (s.getsockname()[4])
     s.close()
     return mac
 
 
-def process_Ethernet_frame(us,header,data):
+def process_Ethernet_frame(us, header, data):
     '''
         Nombre: process_Ethernet_frame
         Descripción: Esta función se ejecutará cada vez que llegue una trama Ethernet. 
             Esta función debe realizar, al menos, las siguientes tareas:
                 -Extraer los campos de dirección Ethernet destino, origen y ethertype
-                -Comprobar si la dirección destino es la propia o la de broadcast. En caso de que la trama no vaya en difusión o no sea para nuestra interfaz la descartaremos (haciendo un return).
+                -Comprobar si la dirección destino es la propia o la de broadcast. En caso de que la trama no vaya 
+                 en difusión o no sea para nuestra interfaz la descartaremos (haciendo un return).
                 -Comprobar si existe una función de callback de nivel superior asociada al Ethertype de la trama:
                     -En caso de que exista, llamar a la función de nivel superior con los parámetros que corresponde:
                         -us (datos de usuario)
@@ -63,7 +64,18 @@ def process_Ethernet_frame(us,header,data):
     '''
     logging.debug('Trama nueva. Función no implementada')
     #TODO: Implementar aquí el código que procesa una trama Ethernet en recepción
-    
+
+    dst = data[0:6]
+    origen = data[6:12]
+    etherType = data[12:14]
+
+    if dst != macAddress and dst != broadcastAddr:
+        return
+
+    fun = upperProtos[etherType]
+    if fun is not None:
+        fun(us, header, data, origen)
+
 
 def process_frame(us,header,data):
     '''
@@ -126,7 +138,8 @@ def registerCallback(callback_func, ethertype):
     '''
     global upperProtos
     #upperProtos es el diccionario que relaciona función de callback y ethertype
-    logging.debug('Función no implementada')
+
+    upperProtos[ethertype] = callback_fun
     
 
 def startEthernetLevel(interface):
@@ -134,7 +147,8 @@ def startEthernetLevel(interface):
         Nombre: startEthernetLevel
         Descripción: Esta función recibe el nombre de una interfaz de red e inicializa el nivel Ethernet. 
             Esta función debe realizar , al menos, las siguientes tareas:
-                -Comprobar si el nivel Ethernet ya estaba inicializado (mediante una variable global). Si ya estaba inicializado devolver -1.
+                -Comprobar si el nivel Ethernet ya estaba inicializado (mediante una variable global). 
+                 Si ya estaba inicializado devolver -1.
                 -Obtener y almacenar en una variable global la dirección MAC asociada a la interfaz que se especifica
                 -Abrir la interfaz especificada en modo promiscuo usando la librería rc1-pcap
                 -Arrancar un hilo de recepción (rxThread) que llame a la función pcap_loop. 
@@ -143,20 +157,29 @@ def startEthernetLevel(interface):
             -Interface: nombre de la interfaz sobre la que inicializar el nivel Ethernet
         Retorno: 0 si todo es correcto, -1 en otro caso
     '''
-    global macAddress,handle,levelInitialized,recvThread
+    global macAddress, handle, levelInitialized, recvThread
     handle = None
-    logging.debug('Función no implementada')
-    #TODO: implementar aquí la inicialización de la interfaz y de las variables globales
 
-    #Una vez hemos abierto la interfaz para captura y hemos inicializado las variables globales (macAddress, handle y levelInitialized) arrancamos
-    #el hilo de recepción
+    if levelInitialized is True:
+        return -1
+
+    macAddress = getHwAddr(interface)
+
+    errbuf = bytearray()
+    handle = pcap_open_live(args.interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
+    
+    if handle is None:
+        return -1
+
     recvThread = rxThread()
     recvThread.daemon = True
     recvThread.start()
+
+    levelInitialized = True
+    
     return 0
 
 def stopEthernetLevel():
-    global macAddress,handle,levelInitialized,recvThread
     '''
         Nombre: stopEthernetLevel
         Descripción_ Esta función parará y liberará todos los recursos necesarios asociados al nivel Ethernet. 
@@ -167,10 +190,19 @@ def stopEthernetLevel():
         Argumentos: Ninguno
         Retorno: 0 si todo es correcto y -1 en otro caso
     '''
+    global macAddress, handle, levelInitialized, recvThread
+
+    recvThread.stop()
+
+    pcap_close(handle)
+
+    levelInitialized = False
+
     logging.debug('Función no implementada')
     return 0
+
     
-def sendEthernetFrame(data,len,etherType,dstMac):
+def sendEthernetFrame(data, len, etherType, dstMac):
     '''
         Nombre: sendEthernetFrame
         Descripción: Esta función construirá una trama Ethernet con lo datos recibidos y la enviará por la interfaz de red. 
@@ -187,7 +219,19 @@ def sendEthernetFrame(data,len,etherType,dstMac):
             -dstMac: Dirección MAC destino a incluir en la trama que se enviará
         Retorno: 0 si todo es correcto, -1 en otro caso
     '''
-    global macAddress,handle
-    logging.debug('Función no implementada')
-    
+    global macAddress, handle
+
+    if len > 1514-14:
+        return -1
+
+    buf = dstMac + macAddress +  etherType + data
+    len += 14
+
+    while len < ETH_FRAME_MIN:
+        buf += 0
+        len += 1
+
+    pcap_inject(handle, buf, len)
+
+    return 0
         

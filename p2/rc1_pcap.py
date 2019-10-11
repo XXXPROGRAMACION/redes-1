@@ -142,10 +142,10 @@ def pcap_dispatch(handle,cnt,callback_fun,user):
     ret = pd(handle,c,cf,us)
     user_callback = None
     return ret
-def pcap_breakloop(hanlde):
+def pcap_breakloop(handle):
     #void pcap_breakloop(pcap_t *);
     pbl = pcap.pcap_breakloop
-    pbl(hanlde)
+    pbl(handle)
 
 def pcap_inject(handle,buf,size):
     #int pcap_inject(pcap_t *p, const void *buf, size_t size);
