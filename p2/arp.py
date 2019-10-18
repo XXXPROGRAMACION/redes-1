@@ -17,7 +17,7 @@ from threading import Lock
 from expiringdict import ExpiringDict
 
 #Semáforo global 
-globalLock =Lock()
+globalLock = Lock()
 #Dirección de difusión (Broadcast)
 broadcastAddr = bytes([0xFF]*6)
 #Cabecera ARP común a peticiones y respuestas. Específica para la combinación Ethernet/IP
@@ -25,11 +25,11 @@ ARPHeader = bytes([0x00,0x01,0x08,0x00,0x06,0x04])
 #longitud (en bytes) de la cabecera común ARP
 ARP_HLEN = 6
 
-#Variable que alamacenará que dirección IP se está intentando resolver
+#Variable que almacenará que dirección IP se está intentando resolver
 requestedIP = None
-#Variable que alamacenará que dirección MAC resuelta o None si no se ha podido obtener
+#Variable que almacenará que dirección MAC resuelta o None si no se ha podido obtener
 resolvedMAC = None
-#Variable que alamacenará True mientras estemos esperando una respuesta ARP
+#Variable que almacenará True mientras estemos esperando una respuesta ARP
 awaitingResponse = False
 
 #Variable para proteger la caché
@@ -37,7 +37,8 @@ cacheLock = Lock()
 #Caché de ARP. Es un diccionario similar al estándar de Python solo que eliminará las entradas a los 10 segundos
 cache = ExpiringDict(max_len=100, max_age_seconds=10)
 
-
+#Direccion MAC del broadcast
+MAC_BROADCAST = 0xFFFFFFFFFFFF
 
 def getIP(interface):
     '''
@@ -174,6 +175,12 @@ def process_arp_frame(us,header,data,srcMac):
     logging.debug('Función no implementada')
     #TODO implementar aquí
 
+    dst = data[0:6]
+    origen = data[6:12]
+    etherType = data[12:14]
+
+    if dst ARPHeader:
+        return -1
 
 
 def initARP(interface):
@@ -185,10 +192,20 @@ def initARP(interface):
             -Realizar una petición ARP gratuita y comprobar si la IP propia ya está asignada. En caso positivo se debe devolver error.
             -Marcar la variable de nivel ARP inicializado a True
     '''
-    global myIP,myMAC,arpInitialized
-    logging.debug('Función no implementada')
-    #TODO implementar aquí
+    global myIP, myMAC, arpInitialized
+
+    registerCallback(process_arp_frame, 0x0806)
+
+    myIP = getIP(interface)
+    myMAC = getHwAddr(interface)
+
+    if ARPResolution(myIP) is not None:
+        return -1
+
+    arpInitialized = True
+
     return 0
+
 
 def ARPResolution(ip):
     '''
@@ -210,6 +227,27 @@ def ARPResolution(ip):
             Como estas variables globales se leen y escriben concurrentemente deben ser protegidas con un Lock
     '''
     global requestedIP,awaitingResponse,resolvedMAC
-    logging.debug('Función no implementada')
-    #TODO implementar aquí
-    return None
+
+    MAC_cache = cache.get(ip)
+    if MAC_cache is not None:
+        return MAC_cache
+
+    request = createARPRequest(ip)
+
+    globalLock.acquire()
+    requestedIP = ip
+    globalLock.release()
+
+    for i in range(0, 3):
+        sendEthernetFrame(request, len(request), 0x0806, MAC_BROADCAST)
+        for j in range(0, 10):
+            time.sleep(.1)
+            if not awaitingResponse:
+                break
+        if not awaitingResponse:
+            break
+
+    if awaitingResponse:
+        return None
+
+    return resolvedMAC

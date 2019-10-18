@@ -231,7 +231,9 @@ def sendEthernetFrame(data, len, etherType, dstMac):
         buf += 0
         len += 1
 
-    pcap_inject(handle, buf, len)
+    ret = pcap_inject(handle, buf, len)
+    if ret is not 0:
+        logging.info('Error en el envío del Ethernet Frame')
 
     return 0
         
