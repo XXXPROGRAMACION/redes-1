@@ -5,8 +5,6 @@
     2019 EPS-UAM
 '''
 
-
-
 from ethernet import *
 import logging
 import socket
@@ -37,8 +35,6 @@ cacheLock = Lock()
 #Caché de ARP. Es un diccionario similar al estándar de Python solo que eliminará las entradas a los 10 segundos
 cache = ExpiringDict(max_len=100, max_age_seconds=10)
 
-#Direccion MAC del broadcast
-MAC_BROADCAST = 0xFFFFFFFFFFFF
 
 def getIP(interface):
     '''
@@ -57,6 +53,7 @@ def getIP(interface):
     s.close()
     return struct.unpack('!I',ip)[0]
 
+
 def printCache():
     '''
         Nombre: printCache
@@ -71,8 +68,7 @@ def printCache():
                 print ('{:>12}\t\t{:>12}'.format(socket.inet_ntoa(struct.pack('!I',k)),':'.join(['{:02X}'.format(b) for b in cache[k]])))
 
 
-
-def processARPRequest(data,MAC):
+def processARPRequest(data, MAC):
     '''
         Nombre: processARPRequest
         Decripción: Esta función procesa una petición ARP. Esta función debe realizar, al menos, las siguientes tareas:
@@ -90,9 +86,23 @@ def processARPRequest(data,MAC):
             -MAC: dirección MAC origen extraída por el nivel Ethernet
         Retorno: Ninguno
     '''
-    logging.debug('Función no implementada')
-    #TODO implementar aquí
-def processARPReply(data,MAC):
+    global myMAC,myIP
+
+    arp_sender_MAC = data[8:14]
+    if arp_sender_MAC is not MAC:
+        return
+
+    arp_target_ip = data[24:28]
+    if arp_target_ip is not myIP:
+        return
+
+    arp_sender_ip = data[14:18]
+
+    arp_reply = createARPReply(arp_sender_ip, arp_sender_MAC)
+    sendEthernetFrame(arp_reply, ARP_HLEN, 0x0806, arp_sender_MAC)
+
+
+def processARPReply(data, MAC):
     '''
         Nombre: processARPReply
         Decripción: Esta función procesa una respuesta ARP. Esta función debe realizar, al menos, las siguientes tareas:
@@ -115,11 +125,33 @@ def processARPReply(data,MAC):
             -MAC: dirección MAC origen extraída por el nivel Ethernet
         Retorno: Ninguno
     '''
+    global myMAC,myIP
     global requestedIP,resolvedMAC,awaitingResponse,cache
-    logging.debug('Función no implentada')    
-    #TODO implementar aquí
-        
 
+    arp_sender_MAC = data[8:14]
+    if arp_sender_MAC is not MAC:
+        return
+
+    arp_target_ip = data[24:28]
+    if arp_target_ip is not myIP:
+        return
+
+    arp_target_MAC = data[18:24]
+
+    arp_sender_ip = data[14:18]
+    if arp_sender_ip is not requestedIP:
+        return
+
+    resolvedMAC = arp_sender_MAC
+
+    cacheLock.acquire()
+    cache[arp_sender_ip] = arp_sender_MAC
+    cacheLock.release()
+
+    globalLock.acquire()
+    awaitingResponse = True
+    requestedIP = None
+    globalLock.release()
 
 
 def createARPRequest(ip):
@@ -132,12 +164,19 @@ def createARPRequest(ip):
     '''
     global myMAC,myIP
     frame = bytes()
-    logging.debug('Función no implementada')
-    #TODO implementar aqui
+
+    frame.append(ARPHeader)
+    frame.append(bytes([0x00, 0x01])
+    frame.append(myMAC)
+    frame.append(myIP)
+    frame.append(broadcastAddr)
+    frame.append(ip)
+    frame.append(bytes([0x00]*4))
+
     return frame
 
-    
-def createARPReply(IP,MAC):
+
+def createARPReply(IP, MAC):
     '''
         Nombre: createARPReply
         Descripción: Esta función construye una respuesta ARP y devuelve la trama con el contenido.
@@ -148,8 +187,15 @@ def createARPReply(IP,MAC):
     '''
     global myMAC,myIP
     frame = bytes()
-    logging.debug('Función no implementada')
-    #TODO implementar aqui
+
+    frame.append(ARPHeader)
+    frame.append(bytes([0x00, 0x02])
+    frame.append(myMAC)
+    frame.append(myIP)
+    frame.append(MAC)
+    frame.append(IP)
+    frame.append(bytes([0x00]*4))
+
     return frame
 
 
@@ -172,12 +218,22 @@ def process_arp_frame(us,header,data,srcMac):
             -srcMac: MAC origen de la trama Ethernet que se ha recibido
         Retorno: Ninguno
     '''
-    logging.debug('Función no implementada')
-    #TODO implementar aquí
 
-    dst = data[0:6]
-    origen = data[6:12]
-    etherType = data[12:14]
+    if header.len < 32:
+        logging.debug('header.len ' + str(header.len) + ' no válida')
+
+    if data[0:6] is not ARPHeader:
+        logging.debug('ARPHeader inválido')
+        return
+
+    opcode = data[6]*16+data[7]
+
+    if opcode is 0x0001:
+        processARPRequest(data, srcMac)
+    elif opcode is 0x0002:
+        processARPReply(data, srcMac)
+    else:
+        logging.debug('opcode ' + str(opcode) + ' no válido')
 
     if dst ARPHeader:
         return -1
@@ -239,7 +295,7 @@ def ARPResolution(ip):
     globalLock.release()
 
     for i in range(0, 3):
-        sendEthernetFrame(request, len(request), 0x0806, MAC_BROADCAST)
+        sendEthernetFrame(request, len(request), 0x0806, broadcastAddr)
         for j in range(0, 10):
             time.sleep(.1)
             if not awaitingResponse:
