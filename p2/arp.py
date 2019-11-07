@@ -90,18 +90,19 @@ def processARPRequest(data, MAC):
     '''
     global myMAC,myIP
 
+
     arp_sender_MAC = data[8:14]
     if arp_sender_MAC != MAC:
         return
 
     arp_target_ip = data[24:28]
-    if arp_target_ip != myIP:
+    if arp_target_ip != myIP.to_bytes(4, byteorder='big'):
         return
 
-    arp_sender_ip = data[14:18]
+    arp_sender_ip = int.from_bytes(data[14:18], byteorder='big', signed=False)
 
     arp_reply = createARPReply(arp_sender_ip, arp_sender_MAC)
-    sendEthernetFrame(arp_reply, ARP_HLEN, ARP_ETHERTYPE, arp_sender_MAC)
+    sendEthernetFrame(arp_reply, len(arp_reply), ARP_ETHERTYPE, arp_sender_MAC)
 
 
 def processARPReply(data, MAC):
@@ -130,18 +131,26 @@ def processARPReply(data, MAC):
     global myMAC,myIP
     global requestedIP,resolvedMAC,awaitingResponse,cache
 
+    globalLock.acquire()
+    if not awaitingResponse:
+        globalLock.release()
+        return
+
     arp_sender_MAC = data[8:14]
     if arp_sender_MAC != MAC:
+        globalLock.release()
         return
 
     arp_target_ip = data[24:28]
     if arp_target_ip != myIP.to_bytes(4, byteorder='big'):
+        globalLock.release()
         return
 
     arp_target_MAC = data[18:24]
 
     arp_sender_ip = data[14:18]
     if arp_sender_ip != requestedIP.to_bytes(4, byteorder='big'):
+        globalLock.release()
         return
 
     resolvedMAC = arp_sender_MAC
@@ -150,7 +159,6 @@ def processARPReply(data, MAC):
     cache[int.from_bytes(arp_sender_ip, byteorder='big', signed=False)] = arp_sender_MAC
     cacheLock.release()
 
-    globalLock.acquire()
     awaitingResponse = False
     requestedIP = None
     globalLock.release()
@@ -255,11 +263,11 @@ def initARP(interface):
     myMAC = getHwAddr(interface)
 
     if ARPResolution(myIP) != None:
-        return -1
+        return False
 
     arpInitialized = True
 
-    return 0
+    return True
 
 
 def ARPResolution(ip):

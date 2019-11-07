@@ -112,9 +112,6 @@ class rxThread(threading.Thread):
             pcap_breakloop(handle)
 
 
-
-   
-
 def registerCallback(callback_func, etherType):
     '''
         Nombre: registerCallback
@@ -230,8 +227,7 @@ def sendEthernetFrame(data, length, etherType, dstMac):
         buf += bytes([0x00])
         length += 1
 
-    #print("Buf: " + str(buf))
-    ret = pcap_inject(handle, buf, length)
+    ret = pcap_inject(handle, bytes(buf), length)
     if ret != length:
         logging.error('Error en el envío del Ethernet Frame')
         return -1
