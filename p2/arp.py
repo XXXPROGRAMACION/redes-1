@@ -89,11 +89,11 @@ def processARPRequest(data, MAC):
     global myMAC,myIP
 
     arp_sender_MAC = data[8:14]
-    if arp_sender_MAC is not MAC:
+    if arp_sender_MAC != MAC:
         return
 
     arp_target_ip = data[24:28]
-    if arp_target_ip is not myIP:
+    if arp_target_ip != myIP:
         return
 
     arp_sender_ip = data[14:18]
@@ -129,17 +129,17 @@ def processARPReply(data, MAC):
     global requestedIP,resolvedMAC,awaitingResponse,cache
 
     arp_sender_MAC = data[8:14]
-    if arp_sender_MAC is not MAC:
+    if arp_sender_MAC != MAC:
         return
 
     arp_target_ip = data[24:28]
-    if arp_target_ip is not myIP:
+    if arp_target_ip != myIP:
         return
 
     arp_target_MAC = data[18:24]
 
     arp_sender_ip = data[14:18]
-    if arp_sender_ip is not requestedIP:
+    if arp_sender_ip != requestedIP:
         return
 
     resolvedMAC = arp_sender_MAC
@@ -163,10 +163,10 @@ def createARPRequest(ip):
         Retorno: Bytes con el contenido de la trama de petición ARP
     '''
     global myMAC,myIP
-    frame = bytes()
+    frame = bytearray()
 
     frame.append(ARPHeader)
-    frame.append(bytes([0x00, 0x01])
+    frame.append(bytes([0x00, 0x01]))
     frame.append(myMAC)
     frame.append(myIP)
     frame.append(broadcastAddr)
@@ -186,10 +186,10 @@ def createARPReply(IP, MAC):
         Retorno: Bytes con el contenido de la trama de petición ARP
     '''
     global myMAC,myIP
-    frame = bytes()
+    frame = bytearray()
 
     frame.append(ARPHeader)
-    frame.append(bytes([0x00, 0x02])
+    frame.append(bytes([0x00, 0x02]))
     frame.append(myMAC)
     frame.append(myIP)
     frame.append(MAC)
@@ -222,20 +222,20 @@ def process_arp_frame(us,header,data,srcMac):
     if header.len < 32:
         logging.debug('header.len ' + str(header.len) + ' no válida')
 
-    if data[0:6] is not ARPHeader:
+    if data[0:6] != ARPHeader:
         logging.debug('ARPHeader inválido')
         return
 
     opcode = data[6]*16+data[7]
 
-    if opcode is 0x0001:
+    if opcode == 0x0001:
         processARPRequest(data, srcMac)
-    elif opcode is 0x0002:
+    elif opcode == 0x0002:
         processARPReply(data, srcMac)
     else:
         logging.debug('opcode ' + str(opcode) + ' no válido')
 
-    if dst ARPHeader:
+    if dst != ARPHeader:
         return -1
 
 
@@ -255,7 +255,7 @@ def initARP(interface):
     myIP = getIP(interface)
     myMAC = getHwAddr(interface)
 
-    if ARPResolution(myIP) is not None:
+    if ARPResolution(myIP) != None:
         return -1
 
     arpInitialized = True
@@ -285,7 +285,7 @@ def ARPResolution(ip):
     global requestedIP,awaitingResponse,resolvedMAC
 
     MAC_cache = cache.get(ip)
-    if MAC_cache is not None:
+    if MAC_cache != None:
         return MAC_cache
 
     request = createARPRequest(ip)

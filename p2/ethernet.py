@@ -73,7 +73,7 @@ def process_Ethernet_frame(us, header, data):
         return
 
     fun = upperProtos[etherType]
-    if fun is not None:
+    if fun != None:
         fun(us, header, data, origen)
 
 
@@ -104,12 +104,12 @@ class rxThread(threading.Thread):
     def run(self): 
         global handle
         #Ejecuta pcap_loop. OJO: handle debe estar inicializado con el resultado de pcap_open_live
-        if handle is not None:
+        if handle != None:
             pcap_loop(handle,-1,process_frame,None)
     def stop(self):
         global handle
         #Para la ejecución de pcap_loop
-        if handle is not None:
+        if handle != None:
             pcap_breakloop(handle)
 
 
@@ -160,7 +160,7 @@ def startEthernetLevel(interface):
     global macAddress, handle, levelInitialized, recvThread
     handle = None
 
-    if levelInitialized is True:
+    if levelInitialized == True:
         return -1
 
     macAddress = getHwAddr(interface)
@@ -168,7 +168,7 @@ def startEthernetLevel(interface):
     errbuf = bytearray()
     handle = pcap_open_live(args.interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
     
-    if handle is None:
+    if handle == None:
         return -1
 
     recvThread = rxThread()
@@ -232,7 +232,7 @@ def sendEthernetFrame(data, len, etherType, dstMac):
         len += 1
 
     ret = pcap_inject(handle, buf, len)
-    if ret is not 0:
+    if ret != 0:
         logging.info('Error en el envío del Ethernet Frame')
 
     return 0
