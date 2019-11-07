@@ -1,0 +1,52 @@
+Autores de la práctica:
+    - Alejandro Pascual Pozo (alejandro.pascualp@estudiante.uam.es)
+    - Víctor Yrazusta Ibarra (victor.yrazusta@estudiante.uam.es)
+
+En la práctica nos hemos limitado a implementar la funcionalidad requerida,
+siguiendo la guía de diseño.
+
+Criterios de evaluación:
+    1.  Normativa de entrega cumplida en su totalidad.
+    2.  Fichero leeme.txt bien explicado.
+    3.  Recibir tramas Ethernet, realizar comprobaciones y llamar correctamente a la función de callback de nivel superior.
+    4.  Enviar tramas Ethernet correctamente.
+    5.  Enviar correctamente peticiones ARP.
+    6.  Procesar correctamente peticiones ARP recibidas.
+    7.  Enviar correctamente respuestas ARP.
+    8.  Procesar correctamente respuestas ARP.
+    9.  Manejo correcto de la caché ARP.
+    10. Uso correcto de Locks.
+    11. Realiza correctamente el ARP gratuito.
+
+Cumplimiento de los criterios de evaluación (Realizado/Parcialmente-Realizado/No-Realizado): 
+
+    1. Realizado.
+
+    2. Realizado.
+
+    3. Realizado. En la función "process_Ethernet_frame" realizamos las comprobaciones cuando llegan tramas ethernet y 
+       llamamos a la función callback correspondiente (previamente registrada con la función "registerCallback").
+
+    4. Realizado. La función "sendEthernetFrame" construye y envía una trama ethernet con los datos especificados.
+       Para el envío se vale de la función pcap_inject.
+
+    5. Realizado. Es la función "ARPResolution" la que se encarga de esto, al llamar a "createARPRequest" para crear
+       la trama y luego enviarla usando "sendEthernetFrame".
+
+    6. Realizado. La función "processARPReply" es la que se encarga de procesar correctamente las peticiones ARP 
+       recibidas, extrayendo sus campos y guardando la MAC recibida, en caso de que el resto de datos sean correctos.
+
+    7. Realizado. El envío de respuestas ARP se realiza mediante la función "sendEthernetFrame".
+
+    8. Realizado. En la función "processARPRequest" implementamos esta funcionalidad, al comprobar los campos y enviar
+       una respuesta ARP si resultase necesario.
+
+    9. Realizado. Usamos el caché para guardar temporalmente las resoluciones ARP de las IP que se van solicitando a la 
+       función "ARPResolution". En esta comprobamos si la IP para la que se quiere saber la dirección física tiene su
+       MAC ya dispuesta en el caché, en cuyo caso no se realiza ninguna petición ARP.
+
+    10. Realizado. Usamos los Locks globales siempre que necesitemos escribir en una variable global, compartida simultaneamente
+        por diversos procesos. De la misma manera protegemos la caché frente a escrituras y lecturas concurrentes, evitando condiciones
+        de carrera.
+
+    11. Realizado. La petición ARP gratuita se realiza en la función "initARP", al inicializar el nivel ARP, a toda la red local (Broadcast).
