@@ -151,7 +151,7 @@ def processARPReply(data, MAC):
     cacheLock.release()
 
     globalLock.acquire()
-    awaitingResponse = True
+    awaitingResponse = False
     requestedIP = None
     globalLock.release()
 
@@ -166,9 +166,6 @@ def createARPRequest(ip):
     '''
     global myMAC,myIP
     frame = bytearray()
-
-    print("ARPRequest: IP " + str(ip.to_bytes(4, byteorder='big')))
-    print("myMAC length: " + str(len(myMAC)))
 
     frame += ARPHeader
     frame += bytes([0x00, 0x01])
@@ -192,10 +189,6 @@ def createARPReply(IP, MAC):
     '''
     global myMAC,myIP
     frame = bytearray()
-
-    print("ARPReply: IP " + str(IP.to_bytes(4, byteorder='big')) + " MAC " + str(MAC))
-    print("myMAC length: " + str(len(myMAC)))
-    print("MAC length: " + str(len(MAC)))
 
     frame += ARPHeader
     frame += bytes([0x00, 0x02])
@@ -238,10 +231,8 @@ def process_arp_frame(us,header,data,srcMac):
     opcode = data[6:8]
 
     if opcode == bytes([0x00, 0x01]):
-        print("Es una request")
         processARPRequest(data, srcMac)
     elif opcode == bytes([0x00, 0x02]):
-        print("Es una reply")
         processARPReply(data, srcMac)
     else:
         logging.debug('opcode ' + str(opcode) + ' no válido')
@@ -299,8 +290,8 @@ def ARPResolution(ip):
     request = createARPRequest(ip)
 
     globalLock.acquire()
-    print("requestedIP establecida a " + str(ip))
     requestedIP = ip
+    awaitingResponse = True
     globalLock.release()
 
     for i in range(0, 3):

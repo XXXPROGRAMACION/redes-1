@@ -68,19 +68,11 @@ def process_Ethernet_frame(us, header, data):
     origen = data[6:12]
     etherType = data[12:14]
 
-    if etherType == bytes([0x08, 0x06]):
-        print("LLega petición ARP! ")
-        if dst == broadcastAddr:
-            print("Es broadcast")
-        elif dst == macAddress:
-            print("Es para mi")
-
     if dst != macAddress and dst != broadcastAddr:
         return
 
     fun = upperProtos.get(int.from_bytes(etherType, byteorder='big', signed=False))
     if fun != None:
-        print("Se gestiona petición")
         fun(us, header, data[14:], origen)
 
 
@@ -241,7 +233,7 @@ def sendEthernetFrame(data, length, etherType, dstMac):
     #print("Buf: " + str(buf))
     ret = pcap_inject(handle, buf, length)
     if ret != length:
-        logging.info('Error en el envío del Ethernet Frame')
+        logging.error('Error en el envío del Ethernet Frame')
         return -1
 
     return 0
