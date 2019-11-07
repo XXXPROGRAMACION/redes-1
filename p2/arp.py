@@ -181,8 +181,7 @@ def createARPRequest(ip):
     frame += myIP.to_bytes(4, byteorder='big')
     frame += bytes([0x00]*6)
     frame += ip.to_bytes(4, byteorder='big')
-    #frame += bytes([0x00]*4)
-
+    
     return frame
 
 
