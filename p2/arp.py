@@ -22,6 +22,7 @@ broadcastAddr = bytes([0xFF]*6)
 ARPHeader = bytes([0x00,0x01,0x08,0x00,0x06,0x04])
 #longitud (en bytes) de la cabecera común ARP
 ARP_HLEN = 6
+ARP_ETHERTYPE = bytes([0x08, 0x06])
 
 #Variable que almacenará que dirección IP se está intentando resolver
 requestedIP = None
@@ -34,6 +35,7 @@ awaitingResponse = False
 cacheLock = Lock()
 #Caché de ARP. Es un diccionario similar al estándar de Python solo que eliminará las entradas a los 10 segundos
 cache = ExpiringDict(max_len=100, max_age_seconds=10)
+
 
 
 def getIP(interface):
@@ -99,7 +101,7 @@ def processARPRequest(data, MAC):
     arp_sender_ip = data[14:18]
 
     arp_reply = createARPReply(arp_sender_ip, arp_sender_MAC)
-    sendEthernetFrame(arp_reply, ARP_HLEN, 0x0806, arp_sender_MAC)
+    sendEthernetFrame(arp_reply, ARP_HLEN, ARP_ETHERTYPE, arp_sender_MAC)
 
 
 def processARPReply(data, MAC):
@@ -133,19 +135,19 @@ def processARPReply(data, MAC):
         return
 
     arp_target_ip = data[24:28]
-    if arp_target_ip != myIP:
+    if arp_target_ip != myIP.to_bytes(4, byteorder='big'):
         return
 
     arp_target_MAC = data[18:24]
 
     arp_sender_ip = data[14:18]
-    if arp_sender_ip != requestedIP:
+    if arp_sender_ip != requestedIP.to_bytes(4, byteorder='big'):
         return
 
     resolvedMAC = arp_sender_MAC
 
     cacheLock.acquire()
-    cache[arp_sender_ip] = arp_sender_MAC
+    cache[int.from_bytes(arp_sender_ip, byteorder='big', signed=False)] = arp_sender_MAC
     cacheLock.release()
 
     globalLock.acquire()
@@ -165,13 +167,16 @@ def createARPRequest(ip):
     global myMAC,myIP
     frame = bytearray()
 
-    frame.append(ARPHeader)
-    frame.append(bytes([0x00, 0x01]))
-    frame.append(myMAC)
-    frame.append(myIP)
-    frame.append(broadcastAddr)
-    frame.append(ip)
-    frame.append(bytes([0x00]*4))
+    print("ARPRequest: IP " + str(ip.to_bytes(4, byteorder='big')))
+    print("myMAC length: " + str(len(myMAC)))
+
+    frame += ARPHeader
+    frame += bytes([0x00, 0x01])
+    frame += myMAC
+    frame += myIP.to_bytes(4, byteorder='big')
+    frame += bytes([0x00]*6)
+    frame += ip.to_bytes(4, byteorder='big')
+    #frame += bytes([0x00]*4)
 
     return frame
 
@@ -188,13 +193,17 @@ def createARPReply(IP, MAC):
     global myMAC,myIP
     frame = bytearray()
 
-    frame.append(ARPHeader)
-    frame.append(bytes([0x00, 0x02]))
-    frame.append(myMAC)
-    frame.append(myIP)
-    frame.append(MAC)
-    frame.append(IP)
-    frame.append(bytes([0x00]*4))
+    print("ARPReply: IP " + str(IP.to_bytes(4, byteorder='big')) + " MAC " + str(MAC))
+    print("myMAC length: " + str(len(myMAC)))
+    print("MAC length: " + str(len(MAC)))
+
+    frame += ARPHeader
+    frame += bytes([0x00, 0x02])
+    frame += myMAC
+    frame += myIP.to_bytes(4, byteorder='big')
+    frame += MAC
+    frame += IP.to_bytes(4, byteorder='big')
+    #frame += bytes([0x00]*4)
 
     return frame
 
@@ -226,17 +235,16 @@ def process_arp_frame(us,header,data,srcMac):
         logging.debug('ARPHeader inválido')
         return
 
-    opcode = data[6]*16+data[7]
+    opcode = data[6:8]
 
-    if opcode == 0x0001:
+    if opcode == bytes([0x00, 0x01]):
+        print("Es una request")
         processARPRequest(data, srcMac)
-    elif opcode == 0x0002:
+    elif opcode == bytes([0x00, 0x02]):
+        print("Es una reply")
         processARPReply(data, srcMac)
     else:
         logging.debug('opcode ' + str(opcode) + ' no válido')
-
-    if dst != ARPHeader:
-        return -1
 
 
 def initARP(interface):
@@ -250,7 +258,7 @@ def initARP(interface):
     '''
     global myIP, myMAC, arpInitialized
 
-    registerCallback(process_arp_frame, 0x0806)
+    registerCallback(process_arp_frame, ARP_ETHERTYPE)
 
     myIP = getIP(interface)
     myMAC = getHwAddr(interface)
@@ -291,11 +299,12 @@ def ARPResolution(ip):
     request = createARPRequest(ip)
 
     globalLock.acquire()
+    print("requestedIP establecida a " + str(ip))
     requestedIP = ip
     globalLock.release()
 
     for i in range(0, 3):
-        sendEthernetFrame(request, len(request), 0x0806, broadcastAddr)
+        sendEthernetFrame(request, len(request), ARP_ETHERTYPE, broadcastAddr)
         for j in range(0, 10):
             time.sleep(.1)
             if not awaitingResponse:

@@ -74,7 +74,7 @@ if __name__ == "__main__":
 			print('\n')
 			break
 
-	logging.info('Cerrando ....')
+	logging.info('Cerrando...')
 
 	#Paramos el nivel Ethernet
 	if(stopEthernetLevel()!=0):

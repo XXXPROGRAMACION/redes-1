@@ -23,6 +23,7 @@ TO_MS = 10
 broadcastAddr = bytes([0xFF]*6)
 #Diccionario que almacena, para un Ethertype dado, qué función de callback se debe ejecutar
 upperProtos = {}
+levelInitialized = False
 
 def getHwAddr(interface):
     '''
@@ -62,19 +63,25 @@ def process_Ethernet_frame(us, header, data):
         Retorno:
             -Ninguno
     '''
-    logging.debug('Trama nueva. Función no implementada')
-    #TODO: Implementar aquí el código que procesa una trama Ethernet en recepción
 
     dst = data[0:6]
     origen = data[6:12]
     etherType = data[12:14]
 
+    if etherType == bytes([0x08, 0x06]):
+        print("LLega petición ARP! ")
+        if dst == broadcastAddr:
+            print("Es broadcast")
+        elif dst == macAddress:
+            print("Es para mi")
+
     if dst != macAddress and dst != broadcastAddr:
         return
 
-    fun = upperProtos[etherType]
+    fun = upperProtos.get(int.from_bytes(etherType, byteorder='big', signed=False))
     if fun != None:
-        fun(us, header, data, origen)
+        print("Se gestiona petición")
+        fun(us, header, data[14:], origen)
 
 
 def process_frame(us,header,data):
@@ -116,7 +123,7 @@ class rxThread(threading.Thread):
 
    
 
-def registerCallback(callback_func, ethertype):
+def registerCallback(callback_func, etherType):
     '''
         Nombre: registerCallback
         Descripción: Esta función recibirá el nombre de una función y su valor de ethertype asociado y añadirá en la tabla 
@@ -139,7 +146,7 @@ def registerCallback(callback_func, ethertype):
     global upperProtos
     #upperProtos es el diccionario que relaciona función de callback y ethertype
 
-    upperProtos[ethertype] = callback_fun
+    upperProtos[int.from_bytes(etherType, byteorder='big', signed=False)] = callback_func
     
 
 def startEthernetLevel(interface):
@@ -166,9 +173,10 @@ def startEthernetLevel(interface):
     macAddress = getHwAddr(interface)
 
     errbuf = bytearray()
-    handle = pcap_open_live(args.interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
+    handle = pcap_open_live(interface, ETH_FRAME_MAX, PROMISC, TO_MS, errbuf)
     
     if handle == None:
+        logging.error('Fallo en pcap_open_live')
         return -1
 
     recvThread = rxThread()
@@ -198,11 +206,10 @@ def stopEthernetLevel():
 
     levelInitialized = False
 
-    logging.debug('Función no implementada')
     return 0
 
     
-def sendEthernetFrame(data, len, etherType, dstMac):
+def sendEthernetFrame(data, length, etherType, dstMac):
     '''
         Nombre: sendEthernetFrame
         Descripción: Esta función construirá una trama Ethernet con lo datos recibidos y la enviará por la interfaz de red. 
@@ -214,26 +221,28 @@ def sendEthernetFrame(data, len, etherType, dstMac):
                 -Llamar a pcap_inject para enviar la trama y comprobar el retorno de dicha llamada. En caso de que haya error notificarlo
         Argumentos:
             -data: datos útiles o payload a encapsular dentro de la trama Ethernet
-            -len: longitud de los datos útiles expresada en bytes
+            -length: longitud de los datos útiles expresada en bytes
             -etherType: valor de tipo Ethernet a incluir en la trama
             -dstMac: Dirección MAC destino a incluir en la trama que se enviará
         Retorno: 0 si todo es correcto, -1 en otro caso
     '''
     global macAddress, handle
 
-    if len > 1514-14:
+    if length > 1514-14:
         return -1
 
-    buf = dstMac + macAddress +  etherType + data
-    len += 14
+    buf = dstMac + macAddress + etherType + data
+    length += 14
 
-    while len < ETH_FRAME_MIN:
-        buf += 0
-        len += 1
+    while length < ETH_FRAME_MIN:
+        buf += bytes([0x00])
+        length += 1
 
-    ret = pcap_inject(handle, buf, len)
-    if ret != 0:
+    #print("Buf: " + str(buf))
+    ret = pcap_inject(handle, buf, length)
+    if ret != length:
         logging.info('Error en el envío del Ethernet Frame')
+        return -1
 
     return 0
         
