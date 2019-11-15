@@ -2,6 +2,7 @@ from ethernet import *
 from arp import *
 from fcntl import ioctl
 import subprocess
+import math
 SIOCGIFMTU = 0x8921
 SIOCGIFNETMASK = 0x891b
 #Diccionario de protocolos. Las claves con los valores numéricos de protocolos de nivel superior a IP
@@ -17,6 +18,8 @@ IP_MIN_HLEN = 20
 IP_MAX_HLEN = 60
 #Valor de TTL por defecto
 DEFAULT_TTL = 64
+#Ethertype de IP
+IP_ETHERTYPE = bytes([0x08, 0x00])
 
 def chksum(msg):
     '''
@@ -52,6 +55,7 @@ def getMTU(interface):
     s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
     ifr = struct.pack('16sH', interface.encode("utf-8"), 0)
     mtu = struct.unpack('16sH', ioctl(s,SIOCGIFMTU, ifr))[1]
+    mtu -= mtu%8
    
     s.close()
    
@@ -132,8 +136,8 @@ def process_IP_datagram(us,header,data,srcMac):
 
     longitud_IP = int.from_bytes(data[0:1], byteorder='big', signed=False)&b'00001111'
     IPID = int.from_bytes(data[4:6], byteorder='big', signed=False)
-    DF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'01000000'
-    MF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'00100000'
+    DF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'01000000'>>6
+    MF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'00100000'>>5
     offset = (int.from_bytes(data[6:8], byteorder='big', signed=False))&b'0001111111111111'
     IP_origen = int.from_bytes(data[12:16], byteorder='big', signed=False)
     IP_destino = int.from_bytes(data[16:20], byteorder='big', signed=False)
@@ -181,7 +185,7 @@ def registerIPProtocol(callback,protocol):
     protocols[int.from_bytes(protocol, byteorder='big', signed=False)] = callback
 
 def initIP(interface,opts=None):
-    global myIP, MTU, netmask, defaultGW,ipOpts
+    global myIP, MTU, netmask, defaultGW, ipOpts
     '''
         Nombre: initIP
         Descripción: Esta función inicializará el nivel IP. Esta función debe realizar, al menos, las siguientes tareas:
@@ -199,8 +203,20 @@ def initIP(interface,opts=None):
         Retorno: True o False en función de si se ha inicializado el nivel o no
     '''
 
+    if initARP(interface) is False:
+        return False
+    
+    myIP = getIP(interface)
+    MTU = getMTU(interface)
+    netmask = getNetmask(interface)
+    defaultGW = getDefaultGW(interface)
+    ipOpts = opts
+    registerCallback(process_IP_datagram, IP_ETHERTYPE)
+
+    return True
+
 def sendIPDatagram(dstIP,data,protocol):
-    global IPID
+    global IPID, ipOpts
     '''
         Nombre: sendIPDatagram
         Descripción: Esta función construye un datagrama IP y lo envía. En caso de que los datos a enviar sean muy grandes la función
@@ -229,6 +245,26 @@ def sendIPDatagram(dstIP,data,protocol):
           
     '''
     header = bytes()
+    header_len = 20+(math.ceil(len(ipOpts)/4)*4)
+    n_fragmentos = data.len()/(MTU-header_len)
 
+    for i in range(0, n_fragmentos):
+        header += (4*16+header_len/4).to_bytes(1)
+        header += bytes([0x00])
+        if (i < n_fragmentos-1):
+            header += MTU.to_bytes(2, byteorder='big')
+            header += IPID.to_bytes(2, byteorder='big')
+            header += (8192+MTU/8*i).to_bytes(2, byteorder='big')
+        else:
+            header += data.len()/(MTU-header_len)+header_len
+            header += IPID.to_bytes(2, byteorder='big')
+            header += (MTU/8*i).to_bytes(2, byteorder='big')
+        header += bytes([0x40])
+        header += protocol
+        header += myIP.to_bytes(4, byteorder='big')
+        header += dstIP.to_bytes(4, byteorder='big')
+        if (ipOpts is not None):
+            header += ipOpts
+        header += header[:10] + chksum(header).to_bytes(2, byteorder='big') + header[10:]
 
-
+    IPID += 1
