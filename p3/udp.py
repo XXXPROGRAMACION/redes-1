@@ -11,7 +11,6 @@ def getUDPSourcePort():
         Argumentos:
             -Ninguno
         Retorno: Entero de 16 bits con el número de puerto origen disponible
-          
     '''
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind(('', 0))
@@ -38,8 +37,15 @@ def process_UDP_datagram(us,header,data,srcIP):
             -data: array de bytes con el conenido del datagrama UDP
             -srcIP: dirección IP que ha enviado el datagrama actual.
         Retorno: Ninguno
-          
     '''
+
+    srcPort = data[0:16]
+    dstPort = data[16:32]
+    UDPData = data[64:]
+
+    logging.debug('srcPort: ' + str(srcPort))
+    logging.debug('dstPort: ' + str(dstPort))
+    logging.debug('UDPData: ' + str(UDPData))
 
 
 def sendUDPDatagram(data,dstPort,dstIP):
@@ -57,10 +63,18 @@ def sendUDPDatagram(data,dstPort,dstIP):
             -data: array de bytes con los datos a incluir como payload en el datagrama UDP
             -dstPort: entero de 16 bits que indica el número de puerto destino a usar
             -dstIP: entero de 32 bits con la IP destino del datagrama UDP
-        Retorno: True o False en función de si se ha enviado el datagrama correctamente o no
-          
+        Retorno: True o False en función de si se ha enviado el datagrama correctamente o no   
     '''
+
     datagram = bytes()
+
+    datagram += getUDPSourcePort()
+    datagram += dstPort.to_bytes(2, byteorder='big')
+    datagram += len(data)+UDP_HLEN
+    datagram += bytes([0x00, 0x00])
+    datagram += datagram
+
+    return sendIPDatagram(dstIP, datagram, UDP_PROTO)
 
 
 def initUDP():
@@ -73,5 +87,6 @@ def initUDP():
         Argumentos:
             -Ninguno
         Retorno: Ninguno
-          
     '''
+
+    registerIPProtocol(process_UDP_datagram, UDP_PROTO)

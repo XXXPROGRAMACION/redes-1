@@ -244,11 +244,21 @@ def sendIPDatagram(dstIP,data,protocol):
         Retorno: True o False en función de si se ha enviado el datagrama correctamente o no
           
     '''
-    header = bytes()
     header_len = 20+(math.ceil(len(ipOpts)/4)*4)
     n_fragmentos = data.len()/(MTU-header_len)
 
+    if (dstIP & netmask) == (myIP & netmask):
+        # Está en nuestra subred
+        dstMac = ARPResolution(dstIP)
+    else:
+        # No está en nuestra subred
+        dstMac = ARPResolution(defaultGW)
+
+    if dstMac is None:
+        return False
+
     for i in range(0, n_fragmentos):
+        header = bytes()
         header += (4*16+header_len/4).to_bytes(1)
         header += bytes([0x00])
         if (i < n_fragmentos-1):
@@ -256,7 +266,7 @@ def sendIPDatagram(dstIP,data,protocol):
             header += IPID.to_bytes(2, byteorder='big')
             header += (8192+MTU/8*i).to_bytes(2, byteorder='big')
         else:
-            header += data.len()/(MTU-header_len)+header_len
+            header += data.len()%(MTU-header_len)+header_len
             header += IPID.to_bytes(2, byteorder='big')
             header += (MTU/8*i).to_bytes(2, byteorder='big')
         header += bytes([0x40])
@@ -267,4 +277,10 @@ def sendIPDatagram(dstIP,data,protocol):
             header += ipOpts
         header += header[:10] + chksum(header).to_bytes(2, byteorder='big') + header[10:]
 
+        new_data = header + data[i*(MTU-header_len):(i+1)*(MTU-header_len)]
+        if sendEthernetFrame(new_data, len(new_data), IP_ETHERTYPE, dstMac) == -1:
+            return False
+
     IPID += 1
+
+    return True

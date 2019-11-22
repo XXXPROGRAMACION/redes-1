@@ -4,7 +4,6 @@ import struct
 
 ICMP_PROTO = 1
 
-
 ICMP_ECHO_REQUEST_TYPE = 8
 ICMP_ECHO_REPLY_TYPE = 0
 
@@ -39,9 +38,28 @@ def process_ICMP_message(us,header,data,srcIp):
             -data: array de bytes con el conenido del mensaje ICMP
             -srcIP: dirección IP que ha enviado el datagrama actual.
         Retorno: Ninguno
-          
     '''
-    
+
+    if chksum(data) != 0:
+        return
+
+    type = data[0]
+    code = data[1]
+    icmp_id = data[4:6]
+    icmp_seqnum = data[6:8]
+
+    logging.debug('type: ' + str(type))
+    logging.debug('code: ' + str(code)) 
+
+    if type == ICMP_ECHO_REQUEST_TYPE:
+        sendICMPMessage(data[8:], ICMP_ECHO_REPLY_TYPE, code, icmp_id, icmp_seqnum, srcIp)
+    elif type == ICMP_ECHO_REPLY_TYPE:
+        with timeLock:
+            send_date = icmp_send_times[(srcIp, icmp_id, icmp_seqnum)]
+        time_to_arrive = header.ts - send_date
+        logging.info('time_to_arrive: ' + time_to_arrive)
+
+
 
 def sendICMPMessage(data,type,code,icmp_id,icmp_seqnum,dstIP):
     '''
@@ -74,6 +92,24 @@ def sendICMPMessage(data,type,code,icmp_id,icmp_seqnum,dstIP):
     '''
   
     message = bytes()
+
+    if type != ICMP_ECHO_REPLY_TYPE and type != ICMP_ECHO_REQUEST_TYPE:
+        return False
+
+    message += type.to_bytes(1, byteorder='big')
+    message += code
+    message += icmp_id
+    message += icmp_seqnum
+    message += data
+    message = message[:2] + chksum(message) * message[2:]
+
+    if type == ICMP_ECHO_REQUEST_TYPE:
+        with timeLock:
+            icmp_send_times[(dstIP, icmp_id, icmp_seqnum)] = time.time()
+    
+    return sendIPDatagram(dstIP, message, ICMP_PROTO)
+
+
    
 def initICMP():
     '''
@@ -87,3 +123,5 @@ def initICMP():
         Retorno: Ninguno
           
     '''
+
+    registerIPProtocol(process_ICMP_message, ICMP_PROTO)
