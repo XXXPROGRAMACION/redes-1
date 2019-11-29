@@ -63,19 +63,19 @@ if __name__ == "__main__":
 			data=f.read()
 			#Pasamos los datos de cadena a bytes
 			data = data.encode()
+
+	startEthernetLevel(args.interface)
 	
 	initICMP()
 	initUDP()
 	if initIP(args.interface,ipOpts) == False:
 		logging.error('Inicializando nivel IP')
 		sys.exit(-1)
-
-	startEthernetLevel(args.interface)
 	
 	
 	while True:
 		try:
-			msg = input('Introduzca opcion:\n\t1.Enviar ping\n\t2.Enviar datagrama UDP:')
+			msg = input('Introduzca opcion:\n\t1.Enviar ping\n\t2.Enviar datagrama UDP\n\t->')
 			if msg == 'q':
 				break
 			elif msg == '1':

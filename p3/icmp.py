@@ -97,9 +97,9 @@ def sendICMPMessage(data,type,code,icmp_id,icmp_seqnum,dstIP):
         return False
 
     message += type.to_bytes(1, byteorder='big')
-    message += code
-    message += icmp_id
-    message += icmp_seqnum
+    message += code.to_bytes(1, byteorder='big')
+    message += icmp_id.to_bytes(2, byteorder='big')
+    message += icmp_seqnum.to_bytes(2, byteorder='big')
     message += data
     message = message[:2] + chksum(message) * message[2:]
 

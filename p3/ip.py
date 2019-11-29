@@ -124,8 +124,11 @@ def process_IP_datagram(us,header,data,srcMac):
         Retorno: Ninguno
     '''
 
-    checksum = chksum(data[0:header.len])
-    if checksum != int.from_bytes(data[10:12], byteorder='big', signed=False):
+    header_len = int.from_bytes(data[0], byteorder='big', signed=False)&b'00001111'*4
+    print('La longitud es esta puta mierda:', header_len)
+    checksum = chksum(data[0:header_len])
+    print('El checksum es esta puta mierda:', checksum)
+    if checksum != 0:
         logging.error('Checksum del datagrama incorrecto')
         return
 
@@ -141,7 +144,7 @@ def process_IP_datagram(us,header,data,srcMac):
     offset = (int.from_bytes(data[6:8], byteorder='big', signed=False))&b'0001111111111111'
     IP_origen = int.from_bytes(data[12:16], byteorder='big', signed=False)
     IP_destino = int.from_bytes(data[16:20], byteorder='big', signed=False)
-    protocolo = int.from_bytes(data[9:10], byteorder='big', signed=False)
+    protocol = int.from_bytes(data[9:10], byteorder='big', signed=False)
 
     logging.debug('\tlongitud_IP: ' + str(longitud_IP))
     logging.debug('\tIPID: ' + str(IPID))
@@ -150,14 +153,11 @@ def process_IP_datagram(us,header,data,srcMac):
     logging.debug('\toffset: ' + str(offset))
     logging.debug('\tIP_origen: ' + str(IP_origen))
     logging.debug('\tIP_destino: ' + str(IP_destino))
-    logging.debug('\tprotocolo: ' + str(protocolo))
+    logging.debug('\tprotocolo: ' + str(protocol))
 
     callback = protocols.get(protocolo)
     if callback is not None:
         callback(us, header, data[header.len:], IP_origen)
-
-
-
 
 
 def registerIPProtocol(callback,protocol):
@@ -182,7 +182,8 @@ def registerIPProtocol(callback,protocol):
         Retorno: Ninguno 
     '''
     global protocols
-    protocols[int.from_bytes(protocol, byteorder='big', signed=False)] = callback
+    protocols[protocol] = callback
+
 
 def initIP(interface,opts=None):
     global myIP, MTU, netmask, defaultGW, ipOpts
@@ -215,6 +216,7 @@ def initIP(interface,opts=None):
 
     return True
 
+
 def sendIPDatagram(dstIP,data,protocol):
     global IPID, ipOpts
     '''
@@ -244,8 +246,13 @@ def sendIPDatagram(dstIP,data,protocol):
         Retorno: True o False en función de si se ha enviado el datagrama correctamente o no
           
     '''
-    header_len = 20+(math.ceil(len(ipOpts)/4)*4)
-    n_fragmentos = data.len()/(MTU-header_len)
+
+    print('Mando una cosa a ' + str(dstIP>>24) + '.' + str(dstIP>>16&0xF) + '.' + str(dstIP>>8&0xF) + '.' + str(dstIP&0xF))
+
+    header_len = 20
+    if ipOpts is not None:
+        header_len += math.ceil(len(ipOpts)/4)*4
+    n_fragmentos = len(data)//(MTU-header_len)+1
 
     if (dstIP & netmask) == (myIP & netmask):
         # Está en nuestra subred
@@ -257,29 +264,36 @@ def sendIPDatagram(dstIP,data,protocol):
     if dstMac is None:
         return False
 
+    print('Me ire 1')
+
     for i in range(0, n_fragmentos):
+        print('Me ire 2.'+str(i))
         header = bytes()
-        header += (4*16+header_len/4).to_bytes(1)
+        header += (4*16+header_len//4).to_bytes(1, byteorder='big')
         header += bytes([0x00])
-        if (i < n_fragmentos-1):
+        if i == n_fragmentos-1:
+            header += (len(data)%(MTU-header_len)+header_len).to_bytes(2, byteorder='big')
+            header += IPID.to_bytes(2, byteorder='big')
+            header += (MTU//8*i).to_bytes(2, byteorder='big')
+        else:
             header += MTU.to_bytes(2, byteorder='big')
             header += IPID.to_bytes(2, byteorder='big')
-            header += (8192+MTU/8*i).to_bytes(2, byteorder='big')
-        else:
-            header += data.len()%(MTU-header_len)+header_len
-            header += IPID.to_bytes(2, byteorder='big')
-            header += (MTU/8*i).to_bytes(2, byteorder='big')
+            header += (8192+MTU//8*i).to_bytes(2, byteorder='big')
         header += bytes([0x40])
-        header += protocol
+        header += protocol.to_bytes(1, byteorder='big')
+        header += bytes([0x00, 0x00])
         header += myIP.to_bytes(4, byteorder='big')
         header += dstIP.to_bytes(4, byteorder='big')
         if (ipOpts is not None):
             header += ipOpts
-        header += header[:10] + chksum(header).to_bytes(2, byteorder='big') + header[10:]
+        checksum = chksum(header)
+        header = header[:10] + checksum.to_bytes(2, byteorder='little') + header[12:]
 
         new_data = header + data[i*(MTU-header_len):(i+1)*(MTU-header_len)]
         if sendEthernetFrame(new_data, len(new_data), IP_ETHERTYPE, dstMac) == -1:
             return False
+
+    print('Me ire 3')
 
     IPID += 1
 

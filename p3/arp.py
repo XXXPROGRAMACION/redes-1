@@ -37,7 +37,6 @@ cacheLock = Lock()
 cache = ExpiringDict(max_len=100, max_age_seconds=10)
 
 
-
 def getIP(interface):
     '''
         Nombre: getIP
