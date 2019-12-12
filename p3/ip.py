@@ -131,8 +131,8 @@ def process_IP_datagram(us,header,data,srcMac):
         return
 
     IPID = int.from_bytes(data[4:6], byteorder='big', signed=False)
-    DF = (int.from_bytes(data[6:7], byteorder='big', signed=False))>>6%2
-    MF = (int.from_bytes(data[6:7], byteorder='big', signed=False))>>5%2
+    DF = ((int.from_bytes(data[6:7], byteorder='big', signed=False))>>6)%2
+    MF = ((int.from_bytes(data[6:7], byteorder='big', signed=False))>>5)%2
     offset = (int.from_bytes(data[6:8], byteorder='big', signed=False))%8192
     IP_origen = int.from_bytes(data[12:16], byteorder='big', signed=False)
     IP_destino = int.from_bytes(data[16:20], byteorder='big', signed=False)
@@ -254,7 +254,6 @@ def sendIPDatagram(dstIP,data,protocol):
     n_fragmentos = len(data)//(MTU-header_len)+1
 
     if (dstIP & netmask) == (myIP & netmask):
-        # Está en nuestra subred
         dstMac = ARPResolution(dstIP)
     else:
         # No está en nuestra subred
@@ -284,9 +283,10 @@ def sendIPDatagram(dstIP,data,protocol):
             header += ipOpts
         checksum = chksum(header)
         header = header[:10] + checksum.to_bytes(2, byteorder='little') + header[12:]
-
-        new_data = header + data[i*(MTU-header_len):(i+1)*(MTU-header_len)]
-        print('Envía IP')
+        if i == n_fragmentos-1:
+            new_data = header + data[i*(MTU-header_len):]
+        else:
+            new_data = header + data[i*(MTU-header_len):(i+1)*(MTU-header_len)]
         if sendEthernetFrame(new_data, len(new_data), IP_ETHERTYPE, dstMac) == -1:
             return False
 
