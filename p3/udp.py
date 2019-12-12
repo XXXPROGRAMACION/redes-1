@@ -39,13 +39,15 @@ def process_UDP_datagram(us,header,data,srcIP):
         Retorno: Ninguno
     '''
 
-    srcPort = data[0:16]
-    dstPort = data[16:32]
-    UDPData = data[64:]
+    srcPort = int.from_bytes(data[0:2], byteorder='big', signed=False)
+    dstPort = int.from_bytes(data[2:4], byteorder='big', signed=False)
+    separator = ', '
+    UDPData = '[' + separator.join(map(lambda x: hex(x), data[8:])) + ']'
 
-    logging.debug('srcPort: ' + str(srcPort))
-    logging.debug('dstPort: ' + str(dstPort))
-    logging.debug('UDPData: ' + str(UDPData))
+    logging.debug('Recibido datagrama UPD:')
+    logging.debug(' -> srcPort: ' + str(srcPort))
+    logging.debug(' -> dstPort: ' + str(dstPort))
+    logging.debug(' -> UDPData: ' + str(UDPData))
 
 
 def sendUDPDatagram(data,dstPort,dstIP):
@@ -72,7 +74,7 @@ def sendUDPDatagram(data,dstPort,dstIP):
     datagram += dstPort.to_bytes(2, byteorder='big')
     datagram += (len(data)+UDP_HLEN).to_bytes(2, byteorder='big')
     datagram += bytes([0x00, 0x00])
-    datagram += datagram
+    datagram += data
 
     return sendIPDatagram(dstIP, datagram, UDP_PROTO)
 

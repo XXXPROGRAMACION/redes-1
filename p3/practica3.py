@@ -23,7 +23,7 @@ DST_PORT = 80
 ICMP_ECHO_REQUEST_TYPE = 8
 ICMP_ECHO_REQUEST_CODE = 0
 
-ipTstampOption =	bytes([68,12,13,0x01,10,0,0,3])
+ipTstampOption = bytes([68,12,13,0x01,10,0,0,3])
 
 if __name__ == "__main__":
 	ICMP_ID = 0
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
 	ipOpts = None
 	if args.addOptions:
-		ipOpts = ipTstampOption +struct.pack('!I',int(time.time()))
+		ipOpts = ipTstampOption + struct.pack('!I',int(time.time()))
 
 	data = b'default test'
 	if args.dataFile:
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 	
 	while True:
 		try:
-			msg = input('Introduzca opcion:\n\t1.Enviar ping\n\t2.Enviar datagrama UDP\n\t->')
+			msg = input('Introduzca opcion:\n\t1.Enviar ping\n\t2.Enviar datagrama UDP\n')
 			if msg == 'q':
 				break
 			elif msg == '1':

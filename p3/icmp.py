@@ -41,23 +41,26 @@ def process_ICMP_message(us,header,data,srcIp):
     '''
 
     if chksum(data) != 0:
+        logging.error('Checksum de ICMP incorrecto')
         return
 
-    type = data[0]
-    code = data[1]
-    icmp_id = data[4:6]
-    icmp_seqnum = data[6:8]
+    type = int.from_bytes(data[0:1], byteorder='big', signed=False)
+    code = int.from_bytes(data[1:2], byteorder='big', signed=False)
+    icmp_id = int.from_bytes(data[4:6], byteorder='big', signed=False)
+    icmp_seqnum = int.from_bytes(data[6:8], byteorder='big', signed=False)
 
-    logging.debug('type: ' + str(type))
-    logging.debug('code: ' + str(code)) 
+    logging.debug('Recibido mensaje ICMP:') 
+    logging.debug(' -> type: ' + str(type))
+    logging.debug(' -> code: ' + str(code)) 
 
     if type == ICMP_ECHO_REQUEST_TYPE:
         sendICMPMessage(data[8:], ICMP_ECHO_REPLY_TYPE, code, icmp_id, icmp_seqnum, srcIp)
     elif type == ICMP_ECHO_REPLY_TYPE:
         with timeLock:
             send_date = icmp_send_times[(srcIp, icmp_id, icmp_seqnum)]
-        time_to_arrive = header.ts - send_date
-        logging.info('time_to_arrive: ' + time_to_arrive)
+        arrive_date = header.ts.tv_sec + (header.ts.tv_usec / 1000000)
+        time_to_arrive = arrive_date - send_date
+        logging.info('Ping: ' + str(time_to_arrive*1000) + ' ms')
 
 
 
@@ -98,10 +101,11 @@ def sendICMPMessage(data,type,code,icmp_id,icmp_seqnum,dstIP):
 
     message += type.to_bytes(1, byteorder='big')
     message += code.to_bytes(1, byteorder='big')
+    message += bytes([0x00, 0x00])
     message += icmp_id.to_bytes(2, byteorder='big')
     message += icmp_seqnum.to_bytes(2, byteorder='big')
     message += data
-    message = message[:2] + chksum(message) * message[2:]
+    message = message[:2] + chksum(message).to_bytes(2, byteorder='little') + message[4:]
 
     if type == ICMP_ECHO_REQUEST_TYPE:
         with timeLock:

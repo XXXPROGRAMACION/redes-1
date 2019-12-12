@@ -124,40 +124,41 @@ def process_IP_datagram(us,header,data,srcMac):
         Retorno: Ninguno
     '''
 
-    header_len = int.from_bytes(data[0], byteorder='big', signed=False)&b'00001111'*4
-    print('La longitud es esta puta mierda:', header_len)
-    checksum = chksum(data[0:header_len])
-    print('El checksum es esta puta mierda:', checksum)
+    longitud_cabecera = int.from_bytes(data[0:1], byteorder='big', signed=False)%16*4
+    checksum = chksum(data[0:longitud_cabecera])
     if checksum != 0:
         logging.error('Checksum del datagrama incorrecto')
         return
 
-    fragmented = int.from_bytes(data[6:8], byteorder='big', signed=False)
-    if fragmented != 0:
-        logging.error('Datagrama fragmentado')
-        return
-
-    longitud_IP = int.from_bytes(data[0:1], byteorder='big', signed=False)&b'00001111'
     IPID = int.from_bytes(data[4:6], byteorder='big', signed=False)
-    DF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'01000000'>>6
-    MF = (int.from_bytes(data[6:7], byteorder='big', signed=False))&b'00100000'>>5
-    offset = (int.from_bytes(data[6:8], byteorder='big', signed=False))&b'0001111111111111'
+    DF = (int.from_bytes(data[6:7], byteorder='big', signed=False))>>6%2
+    MF = (int.from_bytes(data[6:7], byteorder='big', signed=False))>>5%2
+    offset = (int.from_bytes(data[6:8], byteorder='big', signed=False))%8192
     IP_origen = int.from_bytes(data[12:16], byteorder='big', signed=False)
     IP_destino = int.from_bytes(data[16:20], byteorder='big', signed=False)
-    protocol = int.from_bytes(data[9:10], byteorder='big', signed=False)
+    protocolo = int.from_bytes(data[9:10], byteorder='big', signed=False)
 
-    logging.debug('\tlongitud_IP: ' + str(longitud_IP))
-    logging.debug('\tIPID: ' + str(IPID))
-    logging.debug('\tDF: ' + str(DF))
-    logging.debug('\tMF: ' + str(MF))
-    logging.debug('\toffset: ' + str(offset))
-    logging.debug('\tIP_origen: ' + str(IP_origen))
-    logging.debug('\tIP_destino: ' + str(IP_destino))
-    logging.debug('\tprotocolo: ' + str(protocol))
+    if (offset == 0):
+        logging.debug('Recibido datagrama IP:')
+    else:
+        if (MF != 0):
+            logging.debug(' -> Llega fragmento intermedio')
+        else:
+            logging.debug(' -> Llega fragmento final')
+        return
+
+    logging.debug(' -> longitud_cabecera: ' + str(longitud_cabecera))
+    logging.debug(' -> IPID: ' + str(IPID))
+    logging.debug(' -> DF: ' + str(DF))
+    logging.debug(' -> MF: ' + str(MF))
+    logging.debug(' -> offset: ' + str(offset))
+    logging.debug(' -> IP_origen: ' + str((IP_origen>>24)%256) + '.' + str((IP_origen>>16)%256) + '.' + str((IP_origen>>8)%256) + '.' + str(IP_origen%256))
+    logging.debug(' -> IP_destino: ' + str((IP_destino>>24)%256) + '.' + str((IP_destino>>16)%256) + '.' + str((IP_destino>>8)%256) + '.' + str(IP_destino%256))
+    logging.debug(' -> protocolo: ' + str(protocolo))
 
     callback = protocols.get(protocolo)
     if callback is not None:
-        callback(us, header, data[header.len:], IP_origen)
+        callback(us, header, data[longitud_cabecera:], IP_origen)
 
 
 def registerIPProtocol(callback,protocol):
@@ -247,8 +248,6 @@ def sendIPDatagram(dstIP,data,protocol):
           
     '''
 
-    print('Mando una cosa a ' + str(dstIP>>24) + '.' + str(dstIP>>16&0xF) + '.' + str(dstIP>>8&0xF) + '.' + str(dstIP&0xF))
-
     header_len = 20
     if ipOpts is not None:
         header_len += math.ceil(len(ipOpts)/4)*4
@@ -264,10 +263,7 @@ def sendIPDatagram(dstIP,data,protocol):
     if dstMac is None:
         return False
 
-    print('Me ire 1')
-
     for i in range(0, n_fragmentos):
-        print('Me ire 2.'+str(i))
         header = bytes()
         header += (4*16+header_len//4).to_bytes(1, byteorder='big')
         header += bytes([0x00])
@@ -290,10 +286,9 @@ def sendIPDatagram(dstIP,data,protocol):
         header = header[:10] + checksum.to_bytes(2, byteorder='little') + header[12:]
 
         new_data = header + data[i*(MTU-header_len):(i+1)*(MTU-header_len)]
+        print('Envía IP')
         if sendEthernetFrame(new_data, len(new_data), IP_ETHERTYPE, dstMac) == -1:
             return False
-
-    print('Me ire 3')
 
     IPID += 1
 
